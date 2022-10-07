@@ -407,7 +407,7 @@ namespace IWXMVM::IW3::Hooks
 
 	void* FindOriginalFunction(void* hook)
 	{
-		for (auto& elem : CmdHooks) 
+		for (const auto& elem : CmdHooks) 
 		{
 			if (elem.newFunction == hook)
 			{ 
