@@ -9,6 +9,10 @@
 
 #include <UI/UIManager.cpp>
 
+extern bool resetTracers;
+extern float beginColor[4];
+extern float endColor[4];
+
 namespace IWXMVM::IW3::Hooks
 {
 	// TODO: Turn this into a "EventCallbacks" "patch"
@@ -39,28 +43,6 @@ namespace IWXMVM::IW3::Hooks
 
 		return hr;
 	}
-
-	/*
-	void CL_CGameRendering_Internal()
-	{	
-		// run every frame
-	}
-
-	typedef void(*CL_CGameRendering_t)();
-	CL_CGameRendering_t CL_CGameRendering;
-	void __declspec(naked) CL_CGameRendering_Hook()
-	{
-		__asm pushad
-
-		CL_CGameRendering_Internal();
-
-		__asm
-		{
-			popad
-			jmp CL_CGameRendering
-		}
-	}
-	*/
 
 	auto GeneratePattern = [](const std::size_t length) 
 	{
@@ -401,13 +383,13 @@ namespace IWXMVM::IW3::Hooks
 
 	std::vector<FunctionStorage> CmdHooks{
 		{ "vid_restart",	FunctionStorage::CommandType::ServerCommand,	CL_Vid_Restart_Hook },
-		{ "demo",		FunctionStorage::CommandType::ServerCommand,	CL_PlayDemo_Hook },
-		{ "replayDemo",		FunctionStorage::CommandType::Command,		CL_ReplayDemo_Hook }
+		{ "demo",			FunctionStorage::CommandType::ServerCommand,	CL_PlayDemo_Hook },
+		{ "replayDemo",		FunctionStorage::CommandType::Command,			CL_ReplayDemo_Hook }
 	};
 
 	void* FindOriginalFunction(void* hook)
 	{
-		for (const auto& elem : CmdHooks) 
+		for (auto& elem : CmdHooks) 
 		{
 			if (elem.newFunction == hook)
 			{ 
@@ -416,6 +398,79 @@ namespace IWXMVM::IW3::Hooks
 		}
 
 		return nullptr;
+	}
+
+	void CL_CGameRendering_Internal()
+	{
+		// run every frame
+		if (resetTracers) {
+			resetTracers = false;
+
+			if (*(int*)0x746F48 != 0) 
+			{
+				int CG_AllocLocalEntity = 0x43AA20;
+
+				for (std::size_t i = 0; i < 128; ++i) {
+					__asm
+					{
+						pushad
+						mov edi, 0
+						call CG_AllocLocalEntity
+						popad
+					}
+				}
+			}
+		}
+	}
+
+	typedef void(*CL_CGameRendering_t)();
+	CL_CGameRendering_t CL_CGameRendering;
+	void __declspec(naked) CL_CGameRendering_Hook()
+	{
+		__asm pushad
+
+		CL_CGameRendering_Internal();
+
+		__asm
+		{
+			popad
+			jmp CL_CGameRendering
+		}
+	}
+
+	void CG_DrawTracer_Internal(Structures::FxBeam* beam)
+	{
+		// ImGui's RGBA -> game's BGRA
+		beam->beginColor[0] = static_cast<unsigned char>(beginColor[2] * 255);
+		beam->beginColor[1] = static_cast<unsigned char>(beginColor[1] * 255);
+		beam->beginColor[2] = static_cast<unsigned char>(beginColor[0] * 255);
+		beam->beginColor[3] = static_cast<unsigned char>(beginColor[3] * 255);
+		beam->endColor[0] = static_cast<unsigned char>(endColor[2] * 255);
+		beam->endColor[1] = static_cast<unsigned char>(endColor[1] * 255);
+		beam->endColor[2] = static_cast<unsigned char>(endColor[0] * 255);
+		beam->endColor[3] = static_cast<unsigned char>(endColor[3] * 255);
+	}
+
+	typedef void(*CG_DrawTracer_t)();
+	CG_DrawTracer_t CG_DrawTracer;
+	void __declspec(naked) CG_DrawTracer_Hook()
+	{
+		static Structures::FxBeam* beam;
+
+		__asm
+		{
+			pushad
+			lea ecx, [esp + 0x1C + 0x20]
+			mov beam, ecx
+		}
+
+		CG_DrawTracer_Internal(beam);
+
+		__asm
+		{
+			popad
+			jmp CG_DrawTracer
+		}
 	}
 
 	void Install(IDirect3DDevice9* device)
@@ -437,7 +492,8 @@ namespace IWXMVM::IW3::Hooks
 		EndScene = (EndScene_t)HookManager::CreateHook((std::uintptr_t)vTable[42], (std::uintptr_t)&D3D_EndScene_Hook, endSceneBytes, true);
 
 		HookManager::CreateHook(0x53366E, (std::uintptr_t)&SV_Frame_Hook, 5, false);
-		//CL_CGameRendering = (CL_CGameRendering_t)HookManager::CreateHook(0x474DA0, (std::uintptr_t)&CL_CGameRendering_Hook, 7, true);
+		CG_DrawTracer = (CG_DrawTracer_t)HookManager::CreateHook(0x45849C, (std::uintptr_t)&CG_DrawTracer_Hook, 5, true);
+		CL_CGameRendering = (CL_CGameRendering_t)HookManager::CreateHook(0x474DA0, (std::uintptr_t)&CL_CGameRendering_Hook, 7, true);
 
 		for (auto& elem : CmdHooks)
 		{

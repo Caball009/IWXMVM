@@ -80,7 +80,7 @@ namespace IWXMVM::UI
 
 		ImGui::Image((void*)texture, viewportSize);
 
-		ImGui::ShowDemoWindow();
+		//ImGui::ShowDemoWindow();
 
 		ImGui::End();
     }

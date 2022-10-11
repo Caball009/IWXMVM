@@ -11,6 +11,7 @@
 #include "Components/DebugPanel.hpp"
 #include "Components/MenuBar.hpp"
 #include "Components/GameView.hpp"
+#include "Components/TracerMenu.hpp"
 
 namespace IWXMVM::UI::UIManager
 {
@@ -23,6 +24,7 @@ namespace IWXMVM::UI::UIManager
 		vec.emplace_back(std::make_unique<DebugPanel>());
 		vec.emplace_back(std::make_unique<MenuBar>());
 		vec.emplace_back(std::make_unique<ControlBar>());
+		vec.emplace_back(std::make_unique<TracerMenu>());
 
 		return vec;
 	}();
@@ -67,6 +69,21 @@ namespace IWXMVM::UI::UIManager
 		{
 			Sleep(100);
 			hideOverlay = !hideOverlay;
+
+			if (hideOverlay) 
+			{ 
+				ImGuiIO& io = ImGui::GetIO();
+				io.MouseDrawCursor = false;
+
+				Mod::GetGameInterface()->SetMouseMode(GameInterface::MouseMode::Passthrough);
+			}
+			else
+			{
+				ImGuiIO& io = ImGui::GetIO();
+				io.MouseDrawCursor = true;
+
+				Mod::GetGameInterface()->SetMouseMode(GameInterface::MouseMode::Capture);
+			}
 		}
 
 		// ensuring synchronization with the main thread so that ImGui is not shutdown while rendering a frame

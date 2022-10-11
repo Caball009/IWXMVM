@@ -531,6 +531,18 @@ namespace IWXMVM::IW3::Structures
 		bool mouseInitialized;
 	};
 
+	struct FxBeam
+	{
+		float begin[3];
+		float end[3];
+		char beginColor[4];
+		char endColor[4];
+		float beginRadius;
+		float endRadius;
+		int material;
+		int segmentCount;
+		float wiggleDist;
+	};
 
 	clientConnection_t* GetClientConnection();
 	clientActive_t* GetClientActive();

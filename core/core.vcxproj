@@ -130,6 +130,7 @@
     </ClCompile>
     <ClCompile Include="src\UI\Components\GameView.cpp" />
     <ClCompile Include="src\UI\Components\MenuBar.cpp" />
+    <ClCompile Include="src\UI\Components\TracerMenu.cpp" />
     <ClCompile Include="src\UI\UIImage.cpp" />
     <ClCompile Include="src\UI\UIManager.cpp" />
     <ClCompile Include="src\Utilities\HookManager.cpp" />
@@ -145,6 +146,7 @@
     <ClInclude Include="src\UI\Components\DebugPanel.hpp" />
     <ClInclude Include="src\UI\Components\GameView.hpp" />
     <ClInclude Include="src\UI\Components\MenuBar.hpp" />
+    <ClInclude Include="src\UI\Components\TracerMenu.hpp" />
     <ClInclude Include="src\UI\UIComponent.hpp" />
     <ClInclude Include="src\UI\UIImage.hpp" />
     <ClInclude Include="src\Utilities\HookManager.hpp" />
