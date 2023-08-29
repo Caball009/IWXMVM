@@ -152,6 +152,7 @@ namespace IWXMVM::IW3::Hooks::FileOpen
 			if (baseAddress != 0)
 			{
 				// TODO: use signature: 55 89 E5 53 B8 ?? ?? 00 00 E8 ?? ?? ?? ?? 29 C4 C7 04 24 01 00 00 00 E8
+				//						?? ?? ?? ?? ?? ?? ?? 00 00 E8 ?? ?? ?? ?? 29 C4 C7 04 24 01 00 00 00 E8
 				HookManager::CreateHook(baseAddress + 0x1DA49, (std::uintptr_t)CL_SystemInfoChanged_CoD4X_Hook, &CL_SystemInfoChanged_CoD4X_Trampoline);
 			}
 		}
