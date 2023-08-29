@@ -4,6 +4,7 @@
 #include "Mod.hpp"
 #include "Utilities/PathUtils.hpp"
 #include "CustomImGuiControls.hpp"
+#include "../../../../iw3/src/IW3Interface.hpp"
 
 namespace IWXMVM::UI
 {
@@ -142,12 +143,6 @@ namespace IWXMVM::UI
 
 	void DemoLoader::SearchDir(std::size_t dirIdx)
 	{
-		if (demoDirectories[dirIdx].path.string().find(DEMO_TEMP_DIRECTORY) != std::string::npos)
-		{
-			demoDirectories[dirIdx].relevant = false;
-			return;
-		}
-
 		auto subdirsStartIdx = demoDirectories.size();
 		auto demosStartIdx = demoPaths.size();
 
@@ -242,9 +237,24 @@ namespace IWXMVM::UI
 				auto idx = i + demos.first;
 				auto demoName = demoPaths[idx].filename().string();
 
-				if (ImGui::Button(std::format("Load##{0}", demoName).c_str(), ImVec2(60, 20)))
+				static std::optional<std::size_t> nextDemoIndex;
+
+				if (const bool button = ImGui::Button(std::format("Load##{0}", demoName).c_str(), ImVec2(60, 20)); button || nextDemoIndex.has_value())
 				{
-					Mod::GetGameInterface()->PlayDemo(demoPaths[idx]);
+					if (button)
+					{
+						const bool demoIsPlaying = Mod::GetGameInterface()->PlayDemo(demoPaths[idx], true);
+						if (demoIsPlaying) 
+							nextDemoIndex = std::nullopt;
+						else 
+							nextDemoIndex = idx;
+					} 
+					else
+					{
+						const bool demoIsPlaying = Mod::GetGameInterface()->PlayDemo(demoPaths[nextDemoIndex.value()], false);
+						if (demoIsPlaying)
+							nextDemoIndex = std::nullopt;
+					}
 				}
 
 				ImGui::SameLine();
@@ -300,6 +310,21 @@ namespace IWXMVM::UI
 		}
 	}
 
+	void AddAutomaticModLoadingButton()
+	{
+		static bool* button;
+
+		if (button != nullptr) {
+			ImGui::SameLine();
+			ImGui::Checkbox("Load mod automatically", button);
+		} 
+		else if (Mod::GetGameInterface()->GetGame() == Types::Game::IW3)
+		{
+			assert(dynamic_cast<IW3::IW3Interface*>(Mod::GetGameInterface()) != nullptr);
+			button = &reinterpret_cast<IW3::IW3Interface*>(Mod::GetGameInterface())->GetAutomaticModLoading();
+		}
+	}
+
 	void DemoLoader::Render()
 	{
 		if (!initiallyLoadedDemos) 
@@ -328,6 +353,8 @@ namespace IWXMVM::UI
 				ImGui::End();
 				return;
 			}
+
+			AddAutomaticModLoadingButton();
 
 			// Search paths will always be rendered, even if empty
 			RenderSearchPaths();

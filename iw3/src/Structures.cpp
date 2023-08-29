@@ -41,31 +41,10 @@ namespace IWXMVM::IW3::Structures
 		return Dvar_FindVar_Internal();
 	}
 
-	std::string GetFilePath(const std::string demoName)
-	{
-		auto searchpath = (searchpath_s*)0xD5EC4DC;
-		while(searchpath->next)
-		{
-			searchpath = searchpath->next;
-			if (!searchpath->dir)
-				continue;
-
-			auto path = std::filesystem::path(searchpath->dir->path);
-			path.append(searchpath->dir->gamedir);
-			path.append("demos");
-			path.append(demoName);
-
-			if (std::filesystem::exists(path))
-				return path.string();
-		}
-
-		return "";
-	}
-
 	// TODO: now this should really not belong in a file called "Structures.cpp"...
 	void Cbuf_AddText(std::string command)
 	{
-		LOG_DEBUG("Executing command \"{0}\"", command);
+		LOG_DEBUG(R"(Executing command "{0}")", command);
 
 		command.append("\n");
 

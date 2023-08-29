@@ -34,6 +34,9 @@ namespace IWXMVM::UI::UIManager
 
 	bool RestartImGui()
 	{
+		if (needsRestart.load()) 
+			return false;
+
 		ShutdownImGui();
 		needsRestart.store(true);
 

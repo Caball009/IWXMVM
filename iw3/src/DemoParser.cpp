@@ -38,48 +38,52 @@ namespace IWXMVM::IW3::DemoParser
 
 	void Run()
 	{
-		std::ifstream file(Mod::GetGameInterface()->GetDemoInfo().path, std::ios::binary);
-		if (!file.is_open()) {
- 			throw std::exception("failed to open demo file");
- 		}
-
 		std::vector<clientArchiveData_t> archives;
+
+		std::ifstream file(Mod::GetGameInterface()->GetLatestDemoPath(), std::ios::binary);
 		
-		while (true) 
+		if (!file.is_open()) 
 		{
-			char messageType;
-			file.read(&messageType, 1);
-
-			if (file.eof()) 
-				break;
-
-			switch (messageType)
+ 			throw std::exception("failed to open demo file");
+		} 
+		else 
+		{
+			while (true) 
 			{
-				case (uint8_t)DemoMessageType::NetworkPacket:
-				{
-					int messageSize = -2;
+				char messageType;
+				file.read(&messageType, 1);
 
-					SkipBytes(file, 4);
-					file.read(reinterpret_cast<char*>(&messageSize), 4);
-					SkipBytes(file, 4);
-
-					if (file.eof() || messageSize == -1) 
-					{
-						break;
-					}
-
-					SkipBytes(file, messageSize - 4);
-					continue;
-				}
-				case (uint8_t)DemoMessageType::ClientArchive:
-					ReadDemoArchives(file, archives);
-					continue;
-				case (uint8_t)DemoMessageType::CoD4XProtocolHeader:
-					SkipBytes(file, 16);
-					continue;
-				default:
-					LOG_DEBUG("Encountered unhandled demo message type {0}", messageType);
+				if (file.eof()) 
 					break;
+
+				switch (messageType)
+				{
+					case (uint8_t)DemoMessageType::NetworkPacket:
+					{
+						int messageSize = -2;
+
+						SkipBytes(file, 4);
+						file.read(reinterpret_cast<char*>(&messageSize), 4);
+						SkipBytes(file, 4);
+
+						if (file.eof() || messageSize == -1) 
+						{
+							break;
+						}
+
+						SkipBytes(file, messageSize - 4);
+						continue;
+					}
+					case (uint8_t)DemoMessageType::ClientArchive:
+						ReadDemoArchives(file, archives);
+						continue;
+					case (uint8_t)DemoMessageType::CoD4XProtocolHeader:
+						SkipBytes(file, 16);
+						continue;
+					default:
+						LOG_DEBUG("Encountered unhandled demo message type {0}", messageType);
+						break;
+				}
 			}
 		}
 

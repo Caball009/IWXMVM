@@ -10,6 +10,8 @@
 
 namespace IWXMVM::IW3
 {
+	const auto RESERVED_DEMO_NAME = "RESERVED_IW3MVM_DEMO_NAME";
+
 	class IW3Interface : public GameInterface
 	{
 	public:
@@ -27,7 +29,7 @@ namespace IWXMVM::IW3
 
 			Events::RegisterListener(EventType::OnCameraChanged, Hooks::Camera::OnCameraChanged);
 			
-      Events::RegisterListener(EventType::OnDemoLoad, []() { Structures::FindDvar("sv_cheats")->current.enabled = true; });
+			Events::RegisterListener(EventType::OnDemoLoad, []() { Structures::FindDvar("sv_cheats")->current.enabled = true; });
 		}
 
 		uintptr_t GetWndProc() final
@@ -54,12 +56,12 @@ namespace IWXMVM::IW3
 		// TODO: cache this
 		Types::DemoInfo GetDemoInfo() final
 		{
-			Types::DemoInfo demoInfo;
-			demoInfo.name = Structures::GetClientStatic()->servername;
+			const std::filesystem::path path = GetLatestDemoPath();
 
-			std::string str = static_cast<std::string>(demoInfo.name);
-			str += (str.ends_with(".dm_1")) ? "" : ".dm_1";
-			demoInfo.path = Structures::GetFilePath(std::move(str));
+			Types::DemoInfo demoInfo;
+			demoInfo.name = path.filename().string();
+
+			demoInfo.path = path.parent_path().string();
 
 			demoInfo.currentTick = Structures::GetClientActive()->serverTime - DemoParser::demoStartTick;
 			demoInfo.endTick = DemoParser::demoEndTick - DemoParser::demoStartTick;
@@ -72,34 +74,46 @@ namespace IWXMVM::IW3
 			return { ".dm_1" };
 		}
 
-		void PlayDemo(std::filesystem::path demoPath) final
+		bool loadModAutomatically{};
+
+		bool& GetAutomaticModLoading()
 		{
-			const auto demoDirectory = std::filesystem::path(GetDvar("fs_basepath")->value->string) / "players" / "demos";
+			return loadModAutomatically;
+		}
 
-			try
+		std::string latestDemoPath;
+
+		void SetLatestDemoPath(std::string demoPath) final
+		{
+			assert(demoPath.ends_with(GetDemoExtension()) && std::filesystem::exists(demoPath));
+			latestDemoPath = std::move(demoPath);
+		}
+
+		const std::string& GetLatestDemoPath() final
+		{
+			return latestDemoPath;
+		}
+
+		bool PlayDemo(const std::filesystem::path& demoPath, bool doDisconnect) final
+		{
+			if (GetGameState() == Types::GameState::MainMenu || !GetAutomaticModLoading())
 			{
-				LOG_INFO("Playing demo {0}", demoPath.string());
-
-				if (!std::filesystem::exists(demoPath) || !std::filesystem::is_regular_file(demoPath))
-					return;
-
-				const auto tempDemoDirectory = demoDirectory / DEMO_TEMP_DIRECTORY;
-				if (!std::filesystem::exists(tempDemoDirectory))
-					std::filesystem::create_directories(tempDemoDirectory);
-
-				const auto targetPath = tempDemoDirectory / demoPath.filename();
-				if (std::filesystem::exists(targetPath) && std::filesystem::is_regular_file(targetPath))
-					std::filesystem::remove(targetPath);
-
-				std::filesystem::copy(demoPath, targetPath);
+				SetLatestDemoPath(demoPath.string());
 
 				Structures::Cbuf_AddText(
-					std::format(R"(demo {0}/{1})", DEMO_TEMP_DIRECTORY, targetPath.filename().string())
+					std::format(R"(demo {0})", RESERVED_DEMO_NAME)
 				);
-			}
-			catch (std::filesystem::filesystem_error& e)
+
+				return true;
+			} 
+			else 
 			{
-				LOG_ERROR("Failed to play demo file {0}: {1}", demoPath.string(), e.what());
+				if (doDisconnect)
+				{
+					Structures::Cbuf_AddText("disconnect");
+				}
+
+				return false;
 			}
 		}
 

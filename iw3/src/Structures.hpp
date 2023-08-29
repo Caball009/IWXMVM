@@ -558,7 +558,5 @@ namespace IWXMVM::IW3::Structures
 
 	dvar_s* FindDvar(const std::string name);
 
-	std::string GetFilePath(const std::string demoName);
-
 	void Cbuf_AddText(std::string command);
 }

@@ -11,8 +11,6 @@
 
 namespace IWXMVM
 {
-	const auto DEMO_TEMP_DIRECTORY = "IWXTMP";
-
 	class GameInterface
 	{
 	public:
@@ -32,7 +30,9 @@ namespace IWXMVM
 		virtual Types::DemoInfo GetDemoInfo() = 0;
 		virtual std::string_view GetDemoExtension() = 0;
 
-		virtual void PlayDemo(std::filesystem::path demoPath) = 0;
+		virtual bool PlayDemo(const std::filesystem::path& demoPath, bool doDisconnect) = 0;
+		virtual void SetLatestDemoPath(std::string demoPath) = 0;
+		virtual const std::string& GetLatestDemoPath() = 0;
 
 		virtual void ToggleDemoPlaybackState() = 0;
 		virtual bool IsDemoPlaybackPaused() = 0;

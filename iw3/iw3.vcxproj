@@ -110,6 +110,7 @@
     <ClCompile Include="src\Hooks.cpp" />
     <ClCompile Include="src\Hooks\Commands.cpp" />
     <ClCompile Include="src\Hooks\Camera.cpp" />
+    <ClCompile Include="src\Hooks\FileOpen.cpp" />
     <ClCompile Include="src\Hooks\Playback.cpp" />
     <ClCompile Include="src\IW3Interface.hpp" />
     <ClCompile Include="src\StdInclude.cpp">
@@ -123,6 +124,7 @@
     <ClInclude Include="src\Hooks.hpp" />
     <ClInclude Include="src\Hooks\Commands.hpp" />
     <ClInclude Include="src\Hooks\Camera.hpp" />
+    <ClInclude Include="src\Hooks\FileOpen.h" />
     <ClInclude Include="src\Hooks\Playback.hpp" />
     <ClInclude Include="src\Structures.hpp" />
   </ItemGroup>
