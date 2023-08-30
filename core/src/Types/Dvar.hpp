@@ -4,7 +4,6 @@ namespace IWXMVM::Types
 {
 	struct Dvar
 	{
-		std::string_view name;
 		union Value
 		{
 			float floating_point;
@@ -13,6 +12,10 @@ namespace IWXMVM::Types
 			float vector[4];
 			const char* string;
 			uint8_t color[4];
-		}*value;
+		};
+
+		std::string_view name;
+		Value* value{};
+		Value* reset{};
 	};
 }

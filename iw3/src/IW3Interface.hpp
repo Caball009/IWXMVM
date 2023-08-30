@@ -132,6 +132,7 @@ namespace IWXMVM::IW3
 			Types::Dvar dvar;
 			dvar.name = iw3Dvar->name;
 			dvar.value = (Types::Dvar::Value*)&iw3Dvar->current;
+			dvar.reset = (Types::Dvar::Value*)&iw3Dvar->reset;
 
 			return dvar;
 		}
