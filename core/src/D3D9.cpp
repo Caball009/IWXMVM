@@ -136,6 +136,7 @@ namespace IWXMVM::D3D9
 			&dummyDevice
 		);
 
+
 		// Try again in case it's fullscreen
 		if (FAILED(result) || !dummyDevice) {
 			d3d_params.Windowed = false;
