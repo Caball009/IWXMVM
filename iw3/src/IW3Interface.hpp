@@ -28,12 +28,12 @@ namespace IWXMVM::IW3
 
 			Events::RegisterListener(EventType::OnCameraChanged, Hooks::Camera::OnCameraChanged);
 			
-      Events::RegisterListener(EventType::OnDemoLoad, []() { Structures::FindDvar("sv_cheats")->current.enabled = true; });
+			Events::RegisterListener(EventType::OnDemoLoad, []() { Structures::FindDvar("sv_cheats")->current.enabled = true; });
 		}
 
 		uintptr_t GetWndProc() final
 		{
-			return (uintptr_t)0x57BB20;
+			return (uintptr_t)GetGameAddresses().MainWndProc();
 		}
 
 		void SetMouseMode(Types::MouseMode mode) final
@@ -146,7 +146,7 @@ namespace IWXMVM::IW3
 			return static_cast<HMODULE>(moduleData.lpBaseOfDll);
 		}
 
-		std::span<HMODULE> GetModuleHandles() final
+		std::optional<std::span<HMODULE>> GetModuleHandles(Types::ModuleType type = Types::ModuleType::BaseModule) final
 		{
 			static std::vector<HMODULE> modules = []() {
 				if (const HMODULE moduleCoD4X = GetCoD4xModuleHandle(); moduleCoD4X != 0)
@@ -155,7 +155,17 @@ namespace IWXMVM::IW3
 					return std::vector<HMODULE>{ ::GetModuleHandle(nullptr) };
 			}();
 
-			return std::span{ modules };
+			assert(modules.size() >= 1);
+
+			if (type == Types::ModuleType::BaseModule)
+				return std::span{ modules.begin(), modules.begin() + 1 };
+			else 
+			{
+				if (modules.size() > 1)
+					return std::span{ modules.begin() + 1, modules.end() };
+				else 
+					return std::nullopt;
+			}
 		}
 
 		std::optional<Types::Dvar> GetDvar(const std::string_view name) final

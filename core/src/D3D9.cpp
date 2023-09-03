@@ -12,13 +12,16 @@
 namespace IWXMVM::D3D9
 {
 	HWND gameWindowHandle = nullptr;
-	void* vTable[119];
+	void* d3d9DeviceVTable[119];
+	void* d3d9VTable[17];
 	IDirect3DDevice9* device = nullptr;
 
 	typedef HRESULT(__stdcall* EndScene_t)(IDirect3DDevice9* pDevice);
 	EndScene_t EndScene;
 	typedef HRESULT(__stdcall* Reset_t)(IDirect3DDevice9* pDevice, D3DPRESENT_PARAMETERS* pPresentationParameters);
 	Reset_t Reset;
+	typedef HRESULT(__stdcall* CreateDevice_t)(IDirect3D9* pInterface, UINT Adapter, D3DDEVTYPE DeviceType, HWND hFocusWindow, DWORD BehaviorFlags, D3DPRESENT_PARAMETERS* pPresentationParameters, IDirect3DDevice9** ppReturnedDeviceInterface);
+	CreateDevice_t CreateDevice;
 
 	bool CheckForOverlays(std::uintptr_t returnAddress)
 	{
@@ -29,9 +32,9 @@ namespace IWXMVM::D3D9
 		};
 		static std::array<std::uintptr_t, std::size(overlayNames)> returnAddresses{};
 
-		for (std::size_t i = 0; i < returnAddresses.size(); ++i) 
+		for (std::size_t i = 0; i < returnAddresses.size(); ++i)
 		{
-			if (!returnAddresses[i]) 
+			if (!returnAddresses[i])
 			{
 				MEMORY_BASIC_INFORMATION mbi;
 				::VirtualQuery(reinterpret_cast<LPCVOID>(returnAddress), &mbi, sizeof(MEMORY_BASIC_INFORMATION));
@@ -39,13 +42,12 @@ namespace IWXMVM::D3D9
 				char module[1024];
 				::GetModuleFileName(static_cast<HMODULE>(mbi.AllocationBase), module, sizeof(module));
 
-				if (std::string_view{ module }.find(overlayNames[i]) != std::string_view::npos) 
+				if (std::string_view{ module }.find(overlayNames[i]) != std::string_view::npos)
 				{
 					returnAddresses[i] = returnAddress;
 					return true;
 				}
-			} 
-			else if (returnAddresses[i] == returnAddress) 
+			} else if (returnAddresses[i] == returnAddress)
 			{
 				return true;
 			}
@@ -54,20 +56,38 @@ namespace IWXMVM::D3D9
 		return false;
 	}
 
+	HRESULT __stdcall CreateDevice_Hook(IDirect3D9* pInterface, UINT Adapter, D3DDEVTYPE DeviceType, HWND hFocusWindow, DWORD BehaviorFlags, D3DPRESENT_PARAMETERS* pPresentationParameters, IDirect3DDevice9** ppReturnedDeviceInterface)
+	{
+		LOG_DEBUG("CreateDevice called with hwnd {0:x}", (std::uintptr_t)pPresentationParameters->hDeviceWindow);
+
+		HRESULT hr = CreateDevice(pInterface, Adapter, DeviceType, hFocusWindow, BehaviorFlags, pPresentationParameters, ppReturnedDeviceInterface);
+		if (hr != D3D_OK)
+		{
+			return hr;
+		}
+
+		UI::UIManager::Get().ShutdownImGui();
+
+		device = *ppReturnedDeviceInterface;
+
+		UI::UIManager::Get().Initialize(device, pPresentationParameters->hDeviceWindow);
+
+		return hr;
+	}
+
 	HRESULT __stdcall EndScene_Hook(IDirect3DDevice9* pDevice)
 	{
 		const std::uintptr_t returnAddress = reinterpret_cast<std::uintptr_t>(_ReturnAddress());
 		if (CheckForOverlays(returnAddress)) {
 			return EndScene(pDevice);
 		}
-		
-		// If the device pointer did not change, it's most likely a premature call to EndScene and will crash
-		if (!UI::UIManager::isInitialized || UI::UIManager::needsRestart.load() && device != pDevice) {
+
+		if (!UI::UIManager::Get().IsInitialized())
+		{
 			device = pDevice;
-			UI::UIManager::Initialize(pDevice);
+			UI::UIManager::Get().Initialize(pDevice);
 		}
 
-		// In the case in which the device pointer actually did not change, the UI will be reinitialized inside OnFrame
 		Events::Invoke(EventType::OnFrame);
 
 		return EndScene(pDevice);
@@ -75,7 +95,7 @@ namespace IWXMVM::D3D9
 
 	HRESULT __stdcall Reset_Hook(IDirect3DDevice9* pDevice, D3DPRESENT_PARAMETERS* pPresentationParameters)
 	{
-		for (const auto& component : UI::UIManager::uiComponents)
+		for (const auto& component : UI::UIManager::Get().GetUIComponents())
 		{
 			component->Release();
 		}
@@ -135,7 +155,8 @@ namespace IWXMVM::D3D9
 			throw std::runtime_error("Failed to create dummy D3D device");
 		}
 
-		memcpy(vTable, *(void**)dummyDevice, 119 * sizeof(void*));
+		memcpy(d3d9DeviceVTable, *(void**)dummyDevice, 119 * sizeof(void*));
+		memcpy(d3d9VTable, *(void**)d3dObj, 17 * sizeof(void*));
 
 		LOG_DEBUG("Created dummy D3D device");
 
@@ -150,8 +171,9 @@ namespace IWXMVM::D3D9
 			throw std::runtime_error("Failed to initialize MinHook");
 		}
 
-		HookManager::CreateHook((std::uintptr_t)vTable[16], (std::uintptr_t)Reset_Hook, (std::uintptr_t*)&Reset);
-		HookManager::CreateHook((std::uintptr_t)vTable[42], (std::uintptr_t)EndScene_Hook, (std::uintptr_t*)&EndScene);
+		HookManager::CreateHook((std::uintptr_t)d3d9VTable[16], (std::uintptr_t)CreateDevice_Hook, (std::uintptr_t*)&CreateDevice);
+		HookManager::CreateHook((std::uintptr_t)d3d9DeviceVTable[16], (std::uintptr_t)Reset_Hook, (std::uintptr_t*)&Reset);
+		HookManager::CreateHook((std::uintptr_t)d3d9DeviceVTable[42], (std::uintptr_t)EndScene_Hook, (std::uintptr_t*)&EndScene);
 	}
 
 	void Initialize()

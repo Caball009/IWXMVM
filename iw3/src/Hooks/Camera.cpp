@@ -12,7 +12,7 @@ namespace IWXMVM::IW3::Hooks::Camera
 
 	void R_SetViewParmsForScene() 
 	{
-		auto& camera = Mod::GetCameraManager()->GetActiveCamera();
+		auto& camera = Components::CameraManager::Get().GetActiveCamera();
 
 		if (!camera.IsModControlledCameraMode())
 		{
@@ -21,13 +21,13 @@ namespace IWXMVM::IW3::Hooks::Camera
 			return;
 		}
 
-		auto refdef = Structures::GetRefDef();
-		refdef->Origin[0] = camera.GetPosition()[0];
-		refdef->Origin[1] = camera.GetPosition()[1];
-		refdef->Origin[2] = camera.GetPosition()[2];
+		auto& refdef = Structures::GetClientGlobals()->refdef;
+		refdef.vieworg[0] = camera.GetPosition()[0];
+		refdef.vieworg[1] = camera.GetPosition()[1];
+		refdef.vieworg[2] = camera.GetPosition()[2];
 
-		refdef->FOV[0] = std::tan(glm::radians(camera.GetFov()) * 0.5f);
-		refdef->FOV[1] = refdef->FOV[0] * ((float)refdef->ScreenHeight / (float)refdef->ScreenWidth);
+		refdef.tanHalfFovX = std::tan(glm::radians(camera.GetFov()) * 0.5f);
+		refdef.tanHalfFovY = refdef.tanHalfFovX * ((float)refdef.height / (float)refdef.width);
 	}
 
 	uintptr_t R_SetViewParmsForScene_Trampoline;
@@ -43,7 +43,7 @@ namespace IWXMVM::IW3::Hooks::Camera
 
 	void AnglesToAxis(float* angles) 
 	{
-		auto& camera = Mod::GetCameraManager()->GetActiveCamera();
+		auto& camera = Components::CameraManager::Get().GetActiveCamera();
 
 		if (!camera.IsModControlledCameraMode())
 			return;
@@ -69,15 +69,16 @@ namespace IWXMVM::IW3::Hooks::Camera
 
 	void FX_SetupCamera() 
 	{
-		auto& camera = Mod::GetCameraManager()->GetActiveCamera();
+		auto& camera = Components::CameraManager::Get().GetActiveCamera();
 
 		if (!camera.IsModControlledCameraMode())
 			return;
 
-		auto refdef = Structures::GetRefDef();
-		refdef->Origin[0] = camera.GetPosition()[0];
-		refdef->Origin[1] = camera.GetPosition()[1];
-		refdef->Origin[2] = camera.GetPosition()[2];
+
+		auto& refdef = Structures::GetClientGlobals()->refdef;
+		refdef.vieworg[0] = camera.GetPosition()[0];
+		refdef.vieworg[1] = camera.GetPosition()[1];
+		refdef.vieworg[2] = camera.GetPosition()[2];
 	}
 
 	uintptr_t FX_SetupCamera_Trampoline;
@@ -101,7 +102,7 @@ namespace IWXMVM::IW3::Hooks::Camera
 		__asm pushad
 
 		{
-			if (Mod::GetCameraManager()->GetActiveCamera().IsModControlledCameraMode())
+			if (Components::CameraManager::Get().GetActiveCamera().IsModControlledCameraMode())
 				tempEDI = dummyViewAxis;
 		}
 
@@ -132,7 +133,7 @@ namespace IWXMVM::IW3::Hooks::Camera
 
 	void OnCameraChanged()
 	{
-		auto& camera = Mod::GetCameraManager()->GetActiveCamera();
+		auto& camera = Components::CameraManager::Get().GetActiveCamera();
 		auto isFreeCamera = camera.IsModControlledCameraMode();
 
 		Structures::FindDvar("cg_thirdperson")->current.enabled = (isFreeCamera) ? 1 : 0;

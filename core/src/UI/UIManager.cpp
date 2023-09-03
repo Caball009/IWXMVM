@@ -8,18 +8,13 @@
 #include "Resources.hpp"
 #include "Input.hpp"
 
-namespace IWXMVM::UI::UIManager
+namespace IWXMVM::UI
 {
-	bool initRequested = false;
-	std::mutex mtx;
-
-	void ShutdownImGui()
+	void UIManager::ShutdownImGui()
 	{
-		// ensuring synchronization with the render thread so that ImGui is not shutdown while rendering a frame
-		std::lock_guard<std::mutex> guard{ mtx };
 		LOG_DEBUG("Shutting down ImGui");
 
-		SetWindowLongPtr(D3D9::FindWindowHandle(), GWLP_WNDPROC, (LONG_PTR)GameWndProc);
+		SetWindowLongPtr(D3D9::FindWindowHandle(), GWLP_WNDPROC, (LONG_PTR)originalGameWndProc);
 		Mod::GetGameInterface()->SetMouseMode(Types::MouseMode::Passthrough);
 
 		for (const auto& component : uiComponents)
@@ -32,89 +27,67 @@ namespace IWXMVM::UI::UIManager
 		ImGui::DestroyContext();
 	}
 
-	bool RestartImGui()
+	void UIManager::RunImGuiFrame()
 	{
-		ShutdownImGui();
-		needsRestart.store(true);
-
-		return true;
-	}
-
-	bool uiComponentsInitialized = false;
-	void RunImGuiFrame()
-	{
-		// ensuring synchronization with the main thread so that ImGui is not shutdown while rendering a frame
-		std::lock_guard<std::mutex> guard{ mtx };
-
-		if (!isInitialized || needsRestart.load()) {
-			// This handles initialization when the D3D9 device pointer is the same after a UI restart
-			if (initRequested) {
-				Initialize(D3D9::GetDevice());
-				initRequested = false;
-				return;
-			}
-			initRequested = true;
-			return;
-		} else {
-			initRequested = false;
-		}
-
 		try
 		{
 			ImGui_ImplDX9_NewFrame();
 			ImGui_ImplWin32_NewFrame();
 			ImGui::NewFrame();
-      
+
 			Input::UpdateState(ImGui::GetIO());
 
+			static bool uiComponentsInitialized = false;
 			if (!uiComponentsInitialized)
 			{
-				uiComponentsInitialized = true;
-				for (const auto& component : uiComponents)
+				for (const auto& component : GetUIComponents())
 					component->Initialize();
+				uiComponentsInitialized = true;
 			}
 
 			if (Input::KeyDown(ImGuiKey_F1))
 			{
-				hideOverlay.store(!hideOverlay.load());
+				ToggleOverlay();
 			}
 
 			if (Input::KeyDown(ImGuiKey_F2))
 			{
-				showImGuiDemo.store(!showImGuiDemo.load());
+				ToggleImGuiDemo();
 			}
 
 			if (Input::KeyDown(ImGuiKey_F3))
 			{
-				showDebugPanel.store(!showDebugPanel.load());
+				ToggleDebugPanel();
 			}
 
-			if (!hideOverlay.load())
+			if (!hideOverlay)
 			{
-				uiComponents[UIManager::Component::Background]->Render();
-				uiComponents[UIManager::Component::MenuBar]->Render();
-				uiComponents[UIManager::Component::GameView]->Render();
-				uiComponents[UIManager::Component::PrimaryTabs]->Render();
-				uiComponents[UIManager::Component::ControlBar]->Render();
+				GetUIComponent(Component::Background)->Render();
+				GetUIComponent(Component::MenuBar)->Render();
+				GetUIComponent(Component::GameView)->Render();
+				GetUIComponent(Component::PrimaryTabs)->Render();
+				GetUIComponent(Component::ControlBar)->Render();
 			}
 
-			if (showImGuiDemo.load())
+			if (showImGuiDemo)
 			{
 				ImGui::ShowDemoWindow();
 			}
 
-			if (showDebugPanel.load())
+			if (showDebugPanel)
 			{
-				uiComponents[UIManager::Component::DebugPanel]->Render();
+				GetUIComponent(Component::DebugPanel)->Render();
 			}
 
 			ImGui::EndFrame();
 			ImGui::Render();
 			ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
-		} catch (std::exception& e)
+		}
+		catch (std::exception& e)
 		{
 			LOG_CRITICAL("An exception occurred while rendering the IWXMVM user interface: {0}", e.what());
-		} catch (...)
+		}
+		catch (...)
 		{
 			LOG_CRITICAL("An error occurred while rendering the IWXMVM user interface");
 
@@ -130,14 +103,15 @@ namespace IWXMVM::UI::UIManager
 			return true;
 		}
 
-		return CallWindowProc(GameWndProc, hWnd, uMsg, wParam, lParam);
+		return CallWindowProc(UIManager::Get().GetOriginalGameWndProc(), hWnd, uMsg, wParam, lParam);
 	}
 
 	ImVec2 GetWindowSize(HWND hwnd)
 	{
 		RECT windowRect = {};
 		GetWindowRect(hwnd, &windowRect);
-		ImVec2 windowSize = {
+		ImVec2 windowSize =
+		{
 			static_cast<float>(windowRect.right - windowRect.left),
 			static_cast<float>(windowRect.bottom - windowRect.top)
 		};
@@ -148,7 +122,7 @@ namespace IWXMVM::UI::UIManager
 	{
 		ImGuiStyle& style = ImGui::GetStyle();
 		style.FramePadding = { fontSize * 0.28f, fontSize * 0.28f };
-		style.WindowPadding = {16, 16};
+		style.WindowPadding = { 16, 16 };
 		style.Colors[ImGuiCol_FrameBg] = ImVec4(0.01f, 0.01f, 0.01f, 0.54f);
 		style.Colors[ImGuiCol_FrameBgHovered] = ImVec4(0.25f, 0.25f, 0.25f, 0.40f);
 		style.Colors[ImGuiCol_SliderGrab] = ImVec4(0.25f, 0.49f, 0.94f, 1.00f);
@@ -162,20 +136,19 @@ namespace IWXMVM::UI::UIManager
 	INCBIN_EXTERN(RUBIK_FONT);
 	INCBIN_EXTERN(WORK_SANS_FONT);
 	INCBIN_EXTERN(FA_ICONS_FONT);
-	void Initialize(IDirect3DDevice9* device)
+	void UIManager::Initialize(IDirect3DDevice9* device, HWND hwnd)
 	{
 		try
 		{
+			LOG_DEBUG("Initializing ImGui...");
+
 			// to avoid registering events after restarting ImGui
-			if (!isInitialized) {
-				LOG_DEBUG("Initializing ImGui...");
+			if (!isInitialized)
+			{
 				LOG_DEBUG("Registering OnFrame listener");
-				Events::RegisterListener(EventType::OnFrame, RunImGuiFrame);
-			} else if (needsRestart.load()) {
-				LOG_DEBUG("Reinitializing ImGui...");
-			} else {
-				throw std::logic_error("UIManager::Initialize called but UI is running");
-				return;
+				Events::RegisterListener(EventType::OnFrame, [&]() {
+					RunImGuiFrame();
+				});
 			}
 
 			LOG_DEBUG("Creating ImGui context");
@@ -184,16 +157,19 @@ namespace IWXMVM::UI::UIManager
 
 			ImGui::StyleColorsDark();
 
-			HWND hwnd = D3D9::FindWindowHandle();
-			LOG_DEBUG("Initializing ImGui_ImplWin32 with HWND {0:x}", (uint32_t)hwnd);
+			if (hwnd == nullptr)
+			{
+				hwnd = D3D9::FindWindowHandle();
+			}
+			LOG_DEBUG("Initializing ImGui_ImplWin32 with HWND {0:x}", (std::uintptr_t)hwnd);
 			ImGui_ImplWin32_Init(hwnd);
 
-			LOG_DEBUG("Initializing ImGui_ImplDX9 with D3D9 Device {0:x}", (uintptr_t)device);
+			LOG_DEBUG("Initializing ImGui_ImplDX9 with D3D9 Device {0:x}", (std::uintptr_t)device);
 			ImGui_ImplDX9_Init(device);
 
 			// TODO: byte size is game dependent
 			LOG_DEBUG("Hooking WndProc at {0:x}", Mod::GetGameInterface()->GetWndProc());
-			GameWndProc = (WNDPROC)SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR)ImGuiWndProc);
+			originalGameWndProc = (WNDPROC)SetWindowLongPtr(hwnd, GWLP_WNDPROC, (std::uintptr_t)ImGuiWndProc);
 
 			auto windowSize = GetWindowSize(hwnd);
 			auto fontSize = std::floor(windowSize.x / 106.0f);
@@ -203,8 +179,10 @@ namespace IWXMVM::UI::UIManager
 			// io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 			io.Fonts->ClearFonts();
 
-			auto RegisterFont = [&](const char* name, const uint8_t* data, size_t size, float fontSize) {
+			auto RegisterFont = [&](const char* name, const uint8_t* data, size_t size, float fontSize) 
+			{
 				ImFontConfig fontConfig;
+				fontConfig.FontDataOwnedByAtlas = false;
 				fontConfig.SizePixels = fontSize;
 				strcpy_s(fontConfig.Name, name);
 				io.Fonts->AddFontFromMemoryTTF((void*)data, size, fontSize, &fontConfig);
@@ -213,6 +191,7 @@ namespace IWXMVM::UI::UIManager
 				auto iconFontSize = fontSize * 2.0f / 3.0f;
 				static const ImWchar icons_ranges[] = { ICON_MIN_FA, ICON_MAX_16_FA, 0 };
 				ImFontConfig icons_config;
+				icons_config.FontDataOwnedByAtlas = false;
 				icons_config.MergeMode = true;
 				icons_config.PixelSnapH = true;
 				icons_config.GlyphMinAdvanceX = iconFontSize;
@@ -223,15 +202,15 @@ namespace IWXMVM::UI::UIManager
 			RegisterFont("IBMPlexSans", IBMPLEX_FONT_data, IBMPLEX_FONT_size, fontSize);
 			RegisterFont("TASAOrbiterDisplay", TASA_ORBITER_FONT_data, TASA_ORBITER_FONT_size, fontSize);
 			RegisterFont("RubikRegular", RUBIK_FONT_data, RUBIK_FONT_size, fontSize);
-			
+
 			SetImGuiStyle(fontSize);
 
 			Mod::GetGameInterface()->SetMouseMode(Types::MouseMode::Capture);
 			isInitialized = true;
-			needsRestart.store(false);
 
 			LOG_INFO("Initialized UI");
-		} catch (...)
+		}
+		catch (...)
 		{
 			throw std::runtime_error("Failed to initialize UI");
 			// TODO: panic
