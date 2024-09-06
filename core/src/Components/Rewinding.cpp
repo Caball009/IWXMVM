@@ -59,6 +59,37 @@ namespace IWXMVM::Components::Rewinding
 
     void RestoreOldGamestate(auto wouldReadDemoFooter)
     {
+        //
+        static auto b = true;
+        if (b)
+        {
+            if (auto curRewindTo = rewindTo.load(); curRewindTo != NOT_IN_USE && curRewindTo != SKIPPING_FORWARD)
+            {
+                demoFileOffset = 0;
+                demoFile.seekg(0, std::ios::beg);
+
+                //latestRewindTo = rewindTo.load();
+                //rewindTo.store(SKIPPING_FORWARD);
+
+                latestRewindTo = 0;
+                rewindTo.store(NOT_IN_USE);
+            }
+
+            if (wouldReadDemoFooter)
+            {
+                auto addresses = Mod::GetGameInterface()->GetPlaybackDataAddresses();
+
+                LOG_DEBUG("Reached the footer / end of the demo, rewinding and pausing now");
+                rewindTo.store(*reinterpret_cast<int*>(addresses.cl.snap_serverTime) - 1000);
+
+                if (!Components::Playback::IsPaused())
+                    Components::Playback::TogglePaused();
+            }
+
+            return;
+        }
+        //
+        
         if (initialGamestate == nullptr || latestRewindTo > 0)
             return;
 
@@ -126,6 +157,14 @@ namespace IWXMVM::Components::Rewinding
     
     void StoreCurrentGamestate(int len)
     {
+        //
+        static auto b = true;
+        if (b)
+        {
+            return;
+        }
+        //
+        
         auto addresses = Mod::GetGameInterface()->GetPlaybackDataAddresses();
 
         // TODO: find a more robust method of detecting a gamestate message
